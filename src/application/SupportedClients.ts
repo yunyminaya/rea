@@ -2,7 +2,7 @@ import type {
   ClientRegistrationConnectionProfile,
   ClientRegistrationProfile,
 } from "./ClientRegistrationProfile.js";
-import { dirname, isAbsolute, join, resolve, win32 } from "node:path";
+import { dirname, isAbsolute, join, posix, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { err, ok, type Result } from "../domain/result.js";
@@ -13,6 +13,7 @@ import {
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 import { appendCallerPath } from "../filesystem/callerPath.js";
 import { resolveWindowsClaudeDesktopLocation } from "./ClaudeDesktopConfigLocation.js";
+import { resolveClineCliSettingsPath } from "./ClineCliLocation.js";
 import {
   type MsixPackageView,
   windowsAppDataRoots,
@@ -651,6 +652,28 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
     format: "json",
   }),
   defineClient({
+    // Cline discovers the shared ~/.agents/skills directory. Keep REA's
+    // existing shared destination instead of managing another skill copy.
+    name: "cline",
+    registrationConnection: { kind: "cline" },
+    displayName: "Cline CLI",
+    location: ({ home, env, platform }: ClientPathContext) => {
+      const selected = resolveClineCliSettingsPath({
+        home,
+        platform,
+        environment: env,
+      });
+      const pathApi = platform === "win32" ? win32 : posix;
+      return selected.ok
+        ? ok({
+            configPath: selected.value,
+            markerPath: pathApi.dirname(selected.value),
+          })
+        : err({ path: "", message: selected.error.message });
+    },
+    format: "json",
+  }),
+  defineClient({
     name: "gemini_cli",
     registrationConnection: {
       kind: "flat",
@@ -666,6 +689,17 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
       join(env.GEMINI_CLI_HOME || home, ".gemini", "settings.json"),
     markerPath: ({ home, env }: ClientPathContext) =>
       join(env.GEMINI_CLI_HOME || home, ".gemini"),
+    // Antigravity keeps its configuration under the same .gemini directory,
+    // so the directory alone does not show Gemini CLI. Its own settings,
+    // trusted-folder records and session state do.
+    discoveryPaths: (context: ClientPathContext) => {
+      const root = join(context.env.GEMINI_CLI_HOME || context.home, ".gemini");
+      return [
+        join(root, "settings.json"),
+        geminiSettings(context).trustedFoldersPath,
+        join(root, "tmp"),
+      ];
+    },
     skillPath: ({ home, env }: ClientPathContext) =>
       join(env.GEMINI_CLI_HOME || home, ".agents", "skills"),
     format: "json",

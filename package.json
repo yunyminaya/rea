@@ -1,7 +1,7 @@
 {
   "name": "rea-agents",
   "mcpName": "io.github.morluto/rea",
-  "version": "6.8.0",
+  "version": "6.9.0",
   "description": "Reverse engineer anything from your terminal or agent with one CLI and MCP server.",
   "license": "MIT",
   "repository": {
@@ -231,6 +231,7 @@
     "verify:ghidra:switch": "npm run build:cached && node scripts/verify-real-ghidra-switch.mjs",
     "verify:kuna": "npm run build:cached && node scripts/verify-real-kuna.mjs",
     "verify:ghidra:dos": "npm run build:cached && node scripts/verify-real-ghidra-dos.mjs",
+    "verify:ghidra:loader-relocation": "npm run build:cached && node scripts/verify-ghidra-loader-relocation.mjs",
     "verify:ghidra:com": "npm run build:cached && node scripts/verify-real-ghidra-com.mjs",
     "verify:ghidra:raw": "npm run build:cached && node scripts/verify-real-ghidra-raw.mjs",
     "verify:ghidra:address-context": "npm run build:cached && node scripts/verify-real-ghidra-address-context.mjs",
@@ -279,6 +280,7 @@
     "verify:opencode-client": "npm run build:cached && node scripts/verify-opencode-client.mjs",
     "verify:grok-client": "npm run build:cached && node scripts/verify-grok-client.mjs",
     "verify:commandcode-client": "npm run build:cached && node scripts/verify-commandcode-client.mjs",
+    "verify:cline-client": "npm run build:cached && node scripts/verify-cline-client.mjs",
     "verify:omp-client": "npm run build:cached && node scripts/verify-omp-client.mjs",
     "verify:copilot-client": "npm run build:cached && node scripts/verify-copilot-client.mjs",
     "verify:claude-client": "npm run build:cached && node scripts/verify-claude-client.mjs",

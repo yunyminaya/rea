@@ -157,6 +157,78 @@ const expectUndecided = (
   for (const fact of [stage, ...facts]) expect(error.message).toContain(fact);
 };
 
+it.each([
+  { kind: "file_present", passed: true },
+  { kind: "file_absent", passed: false },
+] as const)(
+  "grades $kind against an own __proto__ state file over MCP",
+  async ({ kind, passed }) => {
+    const witness = await witnessed(
+      0,
+      {},
+      {
+        name: "selected-file",
+        prompt: "Check the selected file.",
+        checks: [{ kind, file: "__proto__" }],
+      },
+    );
+    witness.app.state = JSON.parse(
+      '{"__proto__":{"format":"json","view":{"count":7}}}',
+    );
+    const report = parsed(await witness.check({}));
+    expect(report).toMatchObject({
+      passed: passed ? 1 : 0,
+      failed: passed ? 0 : 1,
+      results: [{ id: "check-1", passed }],
+    });
+  },
+);
+
+it.each([false, true])(
+  "keeps own row conditions through MCP (only special column: %s)",
+  async (onlySpecial) => {
+    const where = onlySpecial
+      ? JSON.parse('{"__proto__":"other"}')
+      : JSON.parse('{"id":1,"__proto__":"wanted"}');
+    const common = { file: "db.sqlite", table: "rows", where };
+    const witness = await witnessed(
+      0,
+      {},
+      {
+        name: "find-row",
+        prompt: "Check every selected column of the row.",
+        checks: [
+          { kind: "row_present", ...common },
+          { kind: "row_absent", ...common },
+          { kind: "row_count", ...common, equals: onlySpecial ? 1 : 0 },
+        ],
+      },
+    );
+    witness.app.state = {
+      "db.sqlite": {
+        format: "sqlite",
+        view: {
+          tables: {
+            rows: {
+              columns: ["id", "__proto__"],
+              primary_key: ["id"],
+              rows: [[1, "other"]],
+              truncated: false,
+            },
+          },
+          tables_truncated: false,
+        },
+        truncated: false,
+      },
+    };
+    const report = parsed(await witness.check({}));
+    expect(report).toMatchObject({ passed: 2, failed: 1 });
+    expect(report.results.map(({ passed }) => passed)).toEqual(
+      onlySpecial ? [true, false, true] : [false, true, true],
+    );
+  },
+);
+
 it("witnesses a task: the seed fails, the edit passes, a near miss fails and so does the reset seed", async () => {
   const { app, computer, directory, check, act } = await witnessed();
 
@@ -729,7 +801,7 @@ it("saves a witness record again after a failed save, without checking again", a
   ).toContain("ended");
 });
 
-it("returns the record a witness saved when the computer closes while the save commits", async () => {
+it("reports cancellation and the saved witness when the computer closes during commit", async () => {
   const witness = await witnessed();
   const { client, id, check, directory } = witness;
   await throughNearMiss(witness);
@@ -741,11 +813,17 @@ it("returns the record a witness saved when the computer closes while the save c
       arguments: { computer_id: id },
     });
   });
-  const saved = parsed(await check({ stage: "after_reset" }));
-  expect(saved.witness?.record).toMatchObject({
-    path: join(directory, "witness.json"),
-    verdict: "held",
+  const failure = parseMcpToolError(
+    await check({ stage: "after_reset" }),
+  ).error;
+  expect(failure).toMatchObject({
+    code: "cancelled",
+    details: { partial_observation: expect.any(Object) },
   });
+  const saved = JSON.parse(
+    await readFile(join(directory, "witness.json"), "utf8"),
+  );
+  expect(saved.normalized_result).toMatchObject({ verdict: "held" });
   await closed;
 });
 
@@ -823,7 +901,7 @@ it("keeps a completed reset when the screenshot after it is cancelled", async ()
   const near = parseMcpToolError(await witness.check({ stage: "near_miss" }));
   expect(near.error.message).toContain("put the seed back");
   expect(witness.app.state).toEqual(lines("milk"));
-}, 30_000);
+});
 
 it("checks after_reset once the reset sent before it has relaunched the app", async () => {
   const witness = await witnessed(4);
@@ -847,7 +925,7 @@ it("checks after_reset once the reset sent before it has relaunched the app", as
     outcome: "applied",
   });
   expect(app.methods.slice(-2)).toEqual(["data/reset", "data/get"]);
-}, 30_000);
+});
 
 it("sends progress while a reset waits for the relaunched app", async () => {
   const witness = await witnessed(14);
@@ -861,7 +939,7 @@ it("sends progress while a reset waits for the relaunched app", async () => {
   );
   expect(reset.isError, JSON.stringify(reset)).not.toBe(true);
   expect(progress.length).toBeGreaterThan(0);
-}, 30_000);
+});
 
 /** The shipped timing scaled down a tenfold: a read every 50 ms, a 300 ms window, a 1.5 s bound. */
 const SETTLE: SettleTiming = { intervalMs: 50, windowMs: 300, boundMs: 1500 };

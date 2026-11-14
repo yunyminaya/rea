@@ -872,7 +872,7 @@ const readClientConfiguration = async (
   client: UninstallClient,
   fileSystem: UninstallFileSystem,
   resources: ArtifactResourceScope,
-  ownershipEstablished = false,
+  ownershipEstablished: boolean,
 ): Promise<ClientConfigurationRead> => {
   const applicabilityUnverified =
     client.applicability === "unverified" && !ownershipEstablished;
@@ -1089,11 +1089,13 @@ const removeClient = async (
       // clientRegistrationRemoval admitted only names whose repeats REA owns.
       { removeShadowedMembersAt: editedPaths },
     );
-  } catch {
+  } catch (cause: unknown) {
     return item(
       client.name,
       "failed",
-      "Configuration could not be updated, so no change was made. Repair the configuration, then rerun uninstall.",
+      cause instanceof ConfigurationError
+        ? `Configuration could not be updated, so no change was made. ${cause.message}.`
+        : "Configuration could not be updated, so no change was made. Repair the configuration, then rerun uninstall.",
     );
   }
   if (!serialized.ok)
